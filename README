@@ -1,0 +1,133 @@
+The program was written in Python. It can be run with Python2.7 on CentOS 7,
+or Python 3.x on Ubuntu 18.04 (due to where Python packages were installed).
+It has been tested against CentOS 7 using Python2.7.5 and Ubuntu 18.04
+using Python3.6.7.
+
+We assume the redis server is running on localhost at:
+'redis://localhost:6379/1'
+where shorturlmanager.py is run.
+
+Design decisions
+(1) Python flask is used for RESTful API service. Flask is relatively
+easy to use.
+(2) To be able to support millions of short urls, we use redis as our
+cache service.
+(3) persistence is accomplished via a relational database. Here we just use
+Python sqlite3, since it comes with Python. But in production, either MySQL
+or PostgreSQL should be used.
+(4) to generate short url, we attach time string to the long url, take
+sha256 digest of it, and encode it using base64. From there we take six bytes
+of the result as our short url. The total possible number of short urls is 
+63^6 = 62523502209. We replace both '+' and '/' with '_'.
+We attach time string in generating sha256 digest so that the same long url
+entered twice would would result in different short urls.
+(5) in redis we use hashmap data structure as our cache service. The hashmap
+does insertion and lookup in O(1) time.
+(6) accessed_day count resets to 0 every 24 hours once a new long url is
+entered; 7 days for accessed_week. 
+(7) To test the code, do:
+$ python(3) shorturlmanager.py debugging 30 60
+where debugging allow debugging message to be printed out; 30 (seconds)
+would replace 24 hours, and 60 (seconds) week.
+If from another terminal but the same host, do:
+$ curl http://localhost:5000/<long url>        (this generates a short ur).
+$ curl http://localhost:5000/<short url>        (this prints out a long url, as
+redirection).
+$ curl http://localhost:5000/<short url>-accessed        (this prints access
+statistics).
+(8) redirection from short url to long url takes less than 6 ms in my tests.
+
+
+***** CentOS 7 *****
+To run the program, first copy both build.sh and shorturlmanager.py to the
+host. Next run:
+$ bash build.sh
+
+This should install all necessary software packages.
+Make sure the port 5000 is open to allow connection from other hosts:
+$ sudo firewall-cmd --zone=public --add-port=5000/tcp --permanent
+$ sudo firewall-cmd --reload
+
+To run the program:
+$ python shorturlmanager.py
+
+The URL shortening service will be running on http://0.0.0.0:5000
+
+From another terminal, (if it is the same server, using http://localhost:5000.
+Otherwise, http://<ipaddress>:5000):
+...
+[yichi@centos7 ~]$ curl http://localhost:5000/wqrpuropwehHIUHIOHO323445
+short url: jd3yJU
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU
+short url: jd3yJU, long url: wqrpuropwehHIUHIOHO323445, in 3.81469726562e-06
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU
+short url: jd3yJU, long url: wqrpuropwehHIUHIOHO323445, in 1.09672546387e-05
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU
+short url: jd3yJU, long url: wqrpuropwehHIUHIOHO323445, in 0.000102043151855
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU-accessed
+jd3yJU accessed in: 24 hours: 3, past week: 3, all time: 3
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU-accessed
+jd3yJU accessed in: 24 hours: 0, past week: 0, all time: 3
+short url: jd3yJU, long url: wqrpuropwehHIUHIOHO323445, in 5.96046447754e-06
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU-accessed
+jd3yJU accessed in: 24 hours: 1, past week: 1, all time: 4
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU-accessed
+jd3yJU accessed in: 24 hours: 0, past week: 0, all time: 4
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU
+short url: jd3yJU, long url: wqrpuropwehHIUHIOHO323445, in 1.19209289551e-05
+jd3yJU accessed in: 24 hours: 1, past week: 1, all time: 5
+[yichi@centos7 ~]$ curl http://localhost:5000/jd3yJU-accessed
+jd3yJU accessed in: 24 hours: 0, past week: 1, all time: 5
+
+...
+
+Or, if you like, from another server:
+$ curl http://<IP address>:5000/ihowfeOIIOO1894018240
+...
+
+***** Ubuntu 18.04 *****
+To run the program, first copy both build.sh and short_url_manager.py to the
+host. Next run:
+$ bash build.sh
+18.04 has Python3.6 installed
+Please use python3 to run the code (build.sh installs python packages for Python3):
+$ python3 short_url_manager.py
+
+from another host:
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX
+short url: 1ajpLZ
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/1ajpLZ
+short url: 1ajpLZ, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX, in 0.00519394874573
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/1ajpLZ
+short url: 1ajpLZ, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX, in 0.00429511070251
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/1ajpLZ
+short url: 1ajpLZ, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX, in 0.00409603118896
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/1ajpLZ-accessed
+1ajpLZ accessed in: 24 hours: 3, past week: 3, all time: 3
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000
+short url: sXs3wM
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM
+short url: sXs3wM, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000, in 0.0012640953064
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM
+short url: sXs3wM, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000, in 0.00128698348999
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM
+short url: sXs3wM, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000, in 0.00107502937317
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 3, past week: 3, all time: 3
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 0, past week: 3, all time: 3
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM
+short url: sXs3wM, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000, in 0.00291585922241
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 1, past week: 4, all time: 4
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 0, past week: 0, all time: 4
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM
+short url: sXs3wM, long url: jjqljjoqjorpjwprfjoewwgrgrwefwref123CCCCCCCCCCCCCCCCXXXXXXXXX00000000000000000, in 0.00261116027832
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 1, past week: 1, all time: 5
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 0, past week: 1, all time: 5
+yichi@ubuntu18:~/prog/shorturlmanager$ curl http://192.168.56.103:5000/sXs3wM-accessed
+sXs3wM accessed in: 24 hours: 0, past week: 0, all time: 5
+
